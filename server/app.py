@@ -15,15 +15,63 @@ app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.json.compact = False
 
+api = Api(app)
+
 migrate = Migrate(app, db)
 
 db.init_app(app)
-
 
 @app.route('/')
 def index():
     return '<h1>Code challenge</h1>'
 
+class Restaurants(Resource):
+    def get(self):
+        restaurants = [restaurant.to_dict(rules=('-restaurant_pizzas',)) for restaurant in Restaurant.query.all()]
+        return make_response(restaurants, 200)
+
+class RestaurantByID(Resource):
+    def get(self, id):
+        restaurant = Restaurant.query.filter_by(id = id).first()
+
+        if restaurant:
+            return make_response(restaurant.to_dict(), 200)
+        return make_response({"error": "Restaurant not found"}, 404)
+
+    def delete(self, id):
+        restaurant = Restaurant.query.filter_by(id = id).first()
+
+        if restaurant:
+            db.session.delete(restaurant)
+            db.session.commit()
+            return make_response({}, 204)
+        return make_response({"error": "Restaurant not found"}, 404)
+    
+class Pizzas(Resource):
+    def get(self):
+        pizzas = [pizza.to_dict(rules=('-restaurant_pizzas',)) for pizza in Pizza.query.all()]
+        return make_response(pizzas, 200)
+
+class Restaurant_Pizza(Resource):
+    def post(self):
+        try:
+            new_restaurant_pizza = RestaurantPizza(
+                price = request.json["price"],
+                pizza_id = request.json["pizza_id"],
+                restaurant_id = request.json["restaurant_id"]
+            )
+
+            db.session.add(new_restaurant_pizza)
+            db.session.commit()
+
+            return make_response(new_restaurant_pizza.to_dict(), 201)
+        except ValueError:
+            return make_response({"errors": ["validation errors"]}, 400)
+
+api.add_resource(Restaurants, '/restaurants')
+api.add_resource(RestaurantByID, '/restaurants/<int:id>')
+api.add_resource(Pizzas, '/pizzas')
+api.add_resource(Restaurant_Pizza, '/restaurant_pizzas')
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
